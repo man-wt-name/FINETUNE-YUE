@@ -5,12 +5,18 @@ import logging
 import yaml
 import torch
 from pathlib import Path
+from typing import Any, Dict
+from core.exceptions import InvalidInputError
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-def get_args():
+class PipelineError(Exception):
+    pass
+
+def get_args() -> argparse.Namespace:
+    """Parse command-line arguments."""
     parser = argparse.ArgumentParser(description='Главный скрипт для полного пайплайна fine-tuning YuE модели в Kaggle или локально.')
     
     # Общие параметры
@@ -58,19 +64,25 @@ def get_args():
     parser.add_argument('--wandb_api_key', type=str, default='', help='WandB API key.')
     parser.add_argument('--run_name', type=str, default='YuE-ft-lora', help='Имя запуска для WandB.')
     
-    return parser.parse_args()
+    args = parser.parse_args()
+    if not os.path.isdir(args.input_dir):
+        raise InvalidInputError('Invalid input_dir')
+    return args
 
-def is_kaggle():
+def is_kaggle() -> bool:
+    """Check if running in Kaggle environment."""
     return 'KAGGLE_KERNEL_RUN_TYPE' in os.environ
 
 def adjust_paths_for_kaggle(args):
     if is_kaggle():
         logger.info('Обнаружена среда Kaggle. Адаптирую пути.')
-        args.input_dir = '/kaggle/input/' + os.path.basename(args.input_dir)  # Предполагаем, что dataset загружен
-        args.output_dir = '/kaggle/working/output'
-        args.data_cache_path = '/kaggle/working/cache'
-        args.model_cache_dir = '/kaggle/working/model_cache'
-        args.log_dir = '/kaggle/working/logs'
+        args.input_dir = os.path.normpath('/kaggle/input/' + os.path.basename(args.input_dir))
+        if not os.path.exists(args.input_dir):
+            raise FileNotFoundError(f'Kaggle input dir not found: {args.input_dir}')
+        args.output_dir = '/kaggle/working/FINETUNE-YUE/output'
+        args.data_cache_path = '/kaggle/working/FINETUNE-YUE/cache'
+        args.model_cache_dir = '/kaggle/working/FINETUNE-YUE/model_cache'
+        args.log_dir = '/kaggle/working/FINETUNE-YUE/logs'
         os.makedirs(args.output_dir, exist_ok=True)
         os.makedirs(args.data_cache_path, exist_ok=True)
         os.makedirs(args.model_cache_dir, exist_ok=True)
@@ -80,14 +92,18 @@ def adjust_paths_for_kaggle(args):
 def run_step(cmd, step_name):
     logger.info(f'Запуск шага: {step_name}')
     logger.info(f'Команда: {" ".join(cmd)}')
-    process = subprocess.run(cmd, capture_output=True, text=True)
-    if process.returncode != 0:
-        logger.error(f'Ошибка в шаге {step_name}: {process.stderr}')
-        raise RuntimeError(f'Шаг {step_name} провалился.')
-    logger.info(f'Шаг {step_name} завершен успешно. Вывод: {process.stdout}')
-    return process.stdout
+    try:
+        process = subprocess.run(cmd, capture_output=True, text=True)
+        if process.returncode != 0:
+            logger.error(f'Ошибка в шаге {step_name}: {process.stderr}')
+            raise PipelineError(f'Шаг {step_name} провалился.')
+        logger.info(f'Шаг {step_name} завершен успешно. Вывод: {process.stdout}')
+        return process.stdout
+    except Exception as e:
+        raise PipelineError(f'Error in {step_name}: {e}')
 
 def main():
+    """Main function for pipeline."""
     args = get_args()
     args = adjust_paths_for_kaggle(args)
     
@@ -105,7 +121,7 @@ def main():
     run_step(cmd_audio, 'Конвертация аудио в .npy')
     
     # Шаг 2: Препроцессинг данных (предполагаем jsonl в input_dir/jsonl, npy в npy_output)
-    jsonl_path = os.path.join(args.input_dir, 'jsonl')  # Нужно убедиться, что jsonl существует
+    jsonl_path = os.path.join(args.input_dir, f'jsonl/dummy.msa.xcodec_16k.jsonl')  # Адаптировать на основе data_setting
     mmap_output = os.path.join(args.output_dir, 'mmap')
     cmd_preprocess = [
         'python', 'scripts/preprocess_data.py',

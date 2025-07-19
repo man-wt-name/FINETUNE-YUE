@@ -1,13 +1,41 @@
-torch
-omegaconf
-torchaudio
-einops
-numpy
-transformers
-sentencepiece
-tqdm
-tensorboard
-descript-audiotools>=0.7.2
-descript-audio-codec
-scipy
-accelerate>=0.26.0
+# Основные ML/Audio библиотеки
+# Для PyTorch и torchaudio используйте официальный сайт для выбора нужной CUDA-версии
+# https://pytorch.org/get-started/locally/
+torch==2.4.1
+torchaudio==2.4.1
+
+# HuggingFace Transformers и PEFT (LoRA)
+transformers==4.41.2
+peft==0.11.1
+
+# Gradio для интерфейса
+gradio==4.31.5
+
+# Для работы с YAML
+pyyaml==6.0.1
+
+# Для конфигов
+omegaconf==2.3.0
+
+# Для tqdm-прогрессбаров
+tqdm==4.66.4
+
+# Для numpy-данных
+numpy==1.26.4
+
+# Для аудио
+soundfile==0.12.1
+
+# SentencePiece
+sentencepiece==0.2.0
+
+# pybind11
+pybind11==2.12.0
+
+# einops
+einops==0.8.0
+
+# hf-argparser
+hf-argparser==1.2.0
+
+# Внешние зависимости: xcodec_mini_infer, SoundStream, ffmpeg 

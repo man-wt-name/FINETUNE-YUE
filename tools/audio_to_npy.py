@@ -6,11 +6,14 @@ import numpy as np
 from tqdm import tqdm
 from omegaconf import OmegaConf
 from models.soundstream_hubert_new import SoundStream  # Из xcodec_mini_infer
+import logging
+logger = logging.getLogger(__name__)
 
 def get_args():
     parser = argparse.ArgumentParser(description='Convert raw audio to .npy codec files using XCodec for high quality.')
-    parser.add_argument('--input_dir', type=str, required=True, help='Directory with vocal.wav, instrumental.wav, mix.wav')
-    parser.add_argument('--output_dir', type=str, required=True, help='Output directory for .npy files')
+    group = parser.add_argument_group('Input/Output')
+    group.add_argument('--input_dir', type=str, required=True, default='/kaggle/input/data', help='Directory with vocal.wav, instrumental.wav, mix.wav')
+    group.add_argument('--output_dir', type=str, required=True, default='/kaggle/working/FINETUNE-YUE/npy', help='Output directory for .npy files')
     parser.add_argument('--config_path', type=str, default='xcodec_mini_infer/final_ckpt/config.yaml', help='Path to XCodec config')
     parser.add_argument('--ckpt_path', type=str, default='xcodec_mini_infer/final_ckpt/ckpt_00360000.pth', help='Path to XCodec checkpoint')
     parser.add_argument('--target_bw', type=float, default=6.0, help='Target bandwidth for encoding (higher for quality)')
@@ -47,13 +50,16 @@ def main():
     for audio_type in tqdm(audio_types, desc='Processing audio types'):
         input_path = os.path.join(args.input_dir, f'{audio_type}.wav')  # Предполагаем WAV, добавьте MP3 если нужно
         if not os.path.exists(input_path):
-            print(f'Warning: {input_path} not found, skipping.')
+            logger.warning(f'Warning: {input_path} not found, skipping.')
             continue
-        print(f'Encoding {audio_type} from {input_path}...')
+        logger.info(f'Encoding {audio_type} from {input_path}...')
         codes = encode_audio(model, input_path, args.target_bw, args.sample_rate)
         output_path = os.path.join(args.output_dir, f'{audio_type}.npy')
+        if os.path.exists(output_path):
+            logger.info(f'Cached {audio_type} codes from {output_path}')
+            continue
         np.save(output_path, codes)
-        print(f'Saved {audio_type} codes to {output_path}')
+        logger.info(f'Saved {audio_type} codes to {output_path}')
 
 if __name__ == '__main__':
     main() 

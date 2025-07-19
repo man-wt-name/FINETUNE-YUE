@@ -8,6 +8,7 @@ import json
 import os
 import torch
 import types
+from typing import Any, Dict, Optional, Callable
 
 # import torch.nn.functional as F
 # from megatron.global_vars import set_retro_args, get_retro_args
@@ -17,7 +18,7 @@ import types
 # from megatron.core.transformer import TransformerConfig
 
 
-def parse_args(extra_args_provider=None, ignore_unknown_args=False):
+def parse_args(extra_args_provider: Optional[Callable] = None, ignore_unknown_args: bool = False) -> argparse.Namespace:
     """Parse all arguments."""
     parser = argparse.ArgumentParser(description='YuE Finetune Arguments',
                                      allow_abbrev=False)
@@ -47,7 +48,7 @@ def parse_args(extra_args_provider=None, ignore_unknown_args=False):
 
     return args
 
-def validate_args(args, defaults={}):
+def validate_args(args: argparse.Namespace, defaults: Dict[str, Any] = {}) -> argparse.Namespace:
     # Tensor model parallel size.
     args.tensor_model_parallel_size = min(
         args.tensor_model_parallel_size, args.world_size)
@@ -696,7 +697,7 @@ def _add_logging_args(parser):
                        help='Report to tensorboard interval.')
     group.add_argument('--tensorboard-queue-size', type=int, default=1000,
                        help='Size of the tensorboard queue for pending events '
-                       'and summaries before one of the ‘add’ calls forces a '
+                       'and summaries before one of the 'add' calls forces a '
                        'flush to disk.')
     group.add_argument('--log-timers-to-tensorboard', action='store_true',
                        help='If set, write timers to tensorboard.')

@@ -936,7 +936,7 @@ def get_args():
                        help='JSON key pointing to the codec .npy file for stage 2.')
 
     group = parser.add_argument_group(title='output data')
-    group.add_argument('--output-prefix', type=str, required=True,
+    group.add_argument('--output-prefix', type=str, required=True, default='/kaggle/working/FINETUNE-YUE/output/processed',
                        help='Path prefix for binary output files (e.g., "output/processed_data").')
 
     group = parser.add_argument_group(title='runtime')

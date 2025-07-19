@@ -8,12 +8,29 @@ from infer import main as run_pipeline, get_args as get_infer_args  # Импор
 import concurrent.futures
 import tempfile
 import atexit
+import multiprocessing
+import tqdm
+import queue
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+class InvalidPathError(Exception):
+    pass
+
 def validate_args(args_dict):
+    # Sanitize paths
+    for key in ['input_dir', 'output_dir', 'data_cache_path', 'model_cache_dir']:
+        if key in args_dict:
+            path = os.path.normpath(args_dict[key])
+            if '..' in path or not os.path.isabs(path):  # Basic traversal check
+                raise InvalidPathError(f'Invalid path for {key}: {path}')
+            args_dict[key] = path
+    required = ['input_dir', 'data_cache_path', 'model_cache_dir', 'model_name']
+    for r in required:
+        if not args_dict.get(r):
+            raise ValueError(f'{r} is required.')
     if not args_dict['input_dir']:
         raise ValueError('Input Directory is required.')
     if not args_dict['data_cache_path']:
@@ -99,7 +116,8 @@ def build_ui():
         
         run_button = gr.Button('Run Full Pipeline')
         
-        def run_full(progress=gr.Progress()):
+        def run_full(progress=gr.Progress()) -> tuple:
+            """Run the full pipeline with progress updates."""
             progress(0, desc='Validating inputs...')
             args_dict = {
                 'input_dir': input_dir.value,
@@ -142,7 +160,8 @@ def build_ui():
             args = SimpleNamespace(**args_dict)
             
             # Асинхронный запуск
-            def run_in_background():
+            log_queue = multiprocessing.Queue()
+            def run_in_background(log_queue):
                 temp_log = tempfile.NamedTemporaryFile(delete=False)
                 atexit.register(os.unlink, temp_log.name)
                 logging.getLogger().addHandler(logging.FileHandler(temp_log.name))
@@ -154,15 +173,16 @@ def build_ui():
             
             start_time = time.time()
             with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(run_in_background)
+                future = executor.submit(run_in_background, log_queue)
                 steps = 5  # Кол-во шагов в infer.py
-                for i in range(steps):
-                    time.sleep(5)  # Симуляция, заменить на реальный polling
-                    elapsed = time.time() - start_time
-                    progress((i+1)/steps * 100, desc=f'Step {i+1}/{steps}')
-                    with open(temp_log.name, 'r') as f:
-                        log = f.read()
-                    yield log, (i+1)/steps * 100, f'{elapsed:.2f} seconds'
+                with tqdm(total=steps) as pbar:
+                    for i in range(steps):
+                        time.sleep(5)  # Симуляция, заменить на реальный polling
+                        elapsed = time.time() - start_time
+                        pbar.update(1)
+                        while not log_queue.empty():
+                            log = log_queue.get()
+                            yield log, pbar.n / pbar.total * 100, f'{elapsed:.2f} seconds'
                 result = future.result()
                 elapsed = time.time() - start_time
                 yield result, 100, f'{elapsed:.2f} seconds'
